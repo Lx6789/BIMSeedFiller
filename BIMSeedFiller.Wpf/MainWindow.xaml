@@ -23,10 +23,18 @@
         <Border Grid.Row="1" Background="AliceBlue" Margin="0, 0, 0, 10" Width="250">
             <GroupBox Header="种子信息" Foreground="Gray">
                 <StackPanel Margin="10">
-                    <TextBlock Text="宽度: --" x:Name="txtWidth" Width="80" VerticalAlignment="Center"/>
-                    <TextBlock Text="高度: --" x:Name="txtHeight" Width="80" VerticalAlignment="Center"/>
-                    <TextBlock Text="角度: --" x:Name="txtAngle" Width="80" VerticalAlignment="Center"/>
-                    <TextBlock Text="图层: --" x:Name="txtLayer" Width="80" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="宽度:" VerticalAlignment="Center" Margin="5"/>
+                        <TextBlock Text="{Binding SeedData.Width}" Width="60" Margin="5"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="高度:" VerticalAlignment="Center" Margin="5"/>
+                        <TextBlock Text="{Binding SeedData.Height}" Width="60" Margin="5"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="角度:" VerticalAlignment="Center" Margin="5"/>
+                        <TextBlock Text="{Binding SeedData.Rotation}" Width="60" Margin="5"/>
+                    </StackPanel>
                 </StackPanel>
             </GroupBox>
         </Border>
@@ -38,9 +46,9 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Button Content="选择种子" Width="50" Height="20" Margin="0,0,10,0"/>
-                <Button Content="选择边界" Width="50" Height="20" Margin="0,0,10,0"/>
-                <Button Content="开始填充" Width="50" Height="20"/>
+                <Button Content="选择种子" Width="50" Height="20" Margin="0,0,10,0" Command="{Binding getSeedCommand}"/>
+                <Button Content="选择边界" Width="50" Height="20" Margin="0,0,10,0" Command="{Binding getBoundaryCommand}"/>
+                <Button Content="开始填充" Width="50" Height="20" Command="{Binding FillCommand}"/>
             </StackPanel>
         </Grid>
 

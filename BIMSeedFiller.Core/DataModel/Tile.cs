@@ -1,11 +1,11 @@
 ﻿using Autodesk.AutoCAD.Runtime; 
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.EditorInput; 
-using Autodesk.AutoCAD.DatabaseServices; 
+using Autodesk.AutoCAD.DatabaseServices;
 
-namespace BIMSeedFiller
+namespace BIMSeedFiller.Core.DataModel
 {
-    internal class Tile
+    public class Tile
     {
         public Polyline Geometry;
         public double Area;

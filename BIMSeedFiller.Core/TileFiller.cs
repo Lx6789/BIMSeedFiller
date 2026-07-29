@@ -4,10 +4,12 @@ using Autodesk.AutoCAD.Geometry;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using BIMSeedFiller.Core.DataModel;
+using BIMSeedFiller.Core.Data;
 
-namespace BIMSeedFiller
+namespace BIMSeedFiller.Core
 {
-    internal static class TileFiller
+    public static class TileFiller
     {
         // 字典存储：边界ObjectId获取对应的填充瓦片列表
         private static Dictionary<ObjectId, List<Tile>> allResults = new Dictionary<ObjectId, List<Tile>>();
@@ -176,7 +178,7 @@ namespace BIMSeedFiller
         /// </summary>
         /// <param name="seedResult"></param>
         /// <returns></returns>
-        private static SeedData ExtractSeedData(PromptEntityResult seedResult)
+        public static SeedData ExtractSeedData(PromptEntityResult seedResult)
         {
             if (seedResult == null) return null;
             Database db = HostApplicationServices.WorkingDatabase;

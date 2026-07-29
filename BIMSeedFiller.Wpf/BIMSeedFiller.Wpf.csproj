@@ -1,12 +1,34 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
-    <Platforms>AnyCPU;x64</Platforms>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Library</OutputType>
+		<TargetFramework>net48</TargetFramework>
+		<UseWPF>true</UseWPF>
+		<Platforms>x64</Platforms>
+		<LangVersion>8.0</LangVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\BIMSeedFiller.Core\BIMSeedFiller.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="accoremgd">
+			<HintPath>..\packages\AutoCAD2022NET.1.0.2\lib\2022\AcCoreMgd.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="Acdbmgd">
+			<HintPath>..\packages\AutoCAD2022NET.1.0.2\lib\2022\AcDbMgd.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="Acmgd">
+			<HintPath>E:\AutoCAD\AutoCAD_Soft\AutoCAD 2022\acmgd.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="AcWindows">
+		  <HintPath>E:\AutoCAD\AutoCAD_Soft\AutoCAD 2022\AcWindows.dll</HintPath>
+		  <Private>False</Private>
+		</Reference>
+	</ItemGroup>
 
 </Project>

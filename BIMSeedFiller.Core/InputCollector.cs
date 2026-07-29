@@ -3,9 +3,9 @@ using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using System;
 
-namespace BIMSeedFiller
+namespace BIMSeedFiller.Core
 {
-    internal static class InputCollector
+    public static class InputCollector
     {
         /// <summary>
         /// 获取种子

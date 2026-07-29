@@ -1,8 +1,8 @@
 ﻿using Autodesk.AutoCAD.Geometry;
 
-namespace BIMSeedFiller
+namespace BIMSeedFiller.Core.DataModel
 {
-    internal class StandardTile : Tile
+    public class StandardTile : Tile
     {
         public double Width;
         public double Height;

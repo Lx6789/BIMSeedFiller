@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace BIMSeedFiller
+namespace BIMSeedFiller.Core.DataModel
 {
-    internal class ClippedTile : Tile
+    public class ClippedTile : Tile
     {
     }
 }

@@ -1,14 +1,14 @@
 ﻿using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.DatabaseServices;
 
-namespace BIMSeedFiller
+namespace BIMSeedFiller.Core.Data
 {
-    internal class SeedData
+    public class SeedData
     {
-        public double Width;
-        public double Height;
-        public double Rotation;
-        public Point3d Center;
-        public Polyline Geometry;
+        public double Width { get; set; }
+        public double Height { get; set; }
+        public double Rotation { get; set; }
+        public Point3d Center { get; set; }
+        public Polyline Geometry { get; set; }
     }
 }
