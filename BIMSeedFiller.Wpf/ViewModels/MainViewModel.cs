@@ -164,7 +164,7 @@ namespace BIMSeedFiller.Wpf.ViewModels
                 var doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
                 using (doc.LockDocument())
                 {
-                    bool success = TileFiller.File(seedResult, boundaryResult);
+                    bool success = TileFiller.Fill(seedResult, boundaryResult);
                     if (success)
                     {
                         doc.Editor.WriteMessage("\n填充完成！");

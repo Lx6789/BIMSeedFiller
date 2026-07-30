@@ -20,7 +20,13 @@ namespace BIMSeedFiller
             return null;
         }
 
-        public static bool File(PromptEntityResult seedResult, PromptEntityResult boundaryResult)
+        /// <summary>
+        /// 种子填充
+        /// </summary>
+        /// <param name="seedResult"></param>
+        /// <param name="boundaryResult"></param>
+        /// <returns></returns>
+        public static bool Fill(PromptEntityResult seedResult, PromptEntityResult boundaryResult)
         {
             if (seedResult.Status != PromptStatus.OK || boundaryResult.Status != PromptStatus.OK)
                 return false;
@@ -39,49 +45,14 @@ namespace BIMSeedFiller
                 Polyline boundaryPoly = (Polyline)tr.GetObject(boundary.GeometryId, OpenMode.ForRead);
                 Extents3d box = boundaryPoly.GeometricExtents;
 
-                Point3d[] samplePoints = new Point3d[]
-                {
-                    new Point3d(box.MinPoint.X, box.MinPoint.Y, 0),
-                    new Point3d(box.MaxPoint.X, box.MinPoint.Y, 0),
-                    new Point3d(box.MinPoint.X, box.MaxPoint.Y, 0),
-                    new Point3d(box.MaxPoint.X, box.MaxPoint.Y, 0),
-                    new Point3d((box.MinPoint.X + box.MaxPoint.X) / 2, box.MinPoint.Y, 0),
-                    new Point3d((box.MinPoint.X + box.MaxPoint.X) / 2, box.MaxPoint.Y, 0),
-                    new Point3d(box.MinPoint.X, (box.MinPoint.Y + box.MaxPoint.Y) / 2, 0),
-                    new Point3d(box.MaxPoint.X, (box.MinPoint.Y + box.MaxPoint.Y) / 2, 0)
-                };
-
-                double cos = Math.Cos(seed.Rotation);
-                double sin = Math.Sin(seed.Rotation);
-                Vector3d u = new Vector3d(cos * seed.Width, sin * seed.Width, 0);
-                Vector3d v = new Vector3d(-sin * seed.Height, cos * seed.Height, 0);
-                double det = seed.Width * seed.Height;
-
-                int minCol = int.MaxValue, maxCol = int.MinValue;
-                int minRow = int.MaxValue, maxRow = int.MinValue;
-
-                foreach (Point3d pt in samplePoints)
-                {
-                    double offsetX = pt.X - seed.Center.X;
-                    double offsetY = pt.Y - seed.Center.Y;
-                    double a = (offsetX * v.Y - offsetY * v.X) / det;
-                    double b = (offsetY * u.X - offsetX * u.Y) / det;
-                    int col = (int)Math.Floor(a);
-                    int row = (int)Math.Floor(b);
-                    if (col < minCol) minCol = col;
-                    if (col > maxCol) maxCol = col;
-                    if (row < minRow) minRow = row;
-                    if (row > maxRow) maxRow = row;
-                }
-
-                minCol--; minRow--; maxCol++; maxRow++;
+                var (minCol, maxCol, minRow, maxRow) = CalculateGridRange(seed, box);
 
                 List<(Polyline rect, Point3d center)> generatedRects = new List<(Polyline, Point3d)>();
                 for (int i = minCol; i <= maxCol; i++)
                 {
                     for (int j = minRow; j <= maxRow; j++)
                     {
-                        Point3d tileCenter = seed.Center + i * u + j * v;
+                        Point3d tileCenter = seed.Center + i * CalculateDirectionVector(seed).u + j * CalculateDirectionVector(seed).v;
                         Polyline tileRect = CreateRectangle(tileCenter, seed.Width, seed.Height, seed.Rotation, db, tr);
                         generatedRects.Add((tileRect, tileCenter));
                     }
@@ -133,6 +104,74 @@ namespace BIMSeedFiller
             return allTiles.Count > 0;
         }
 
+        // ================== 公共辅助方法（避免重复） ==================
+
+        /// <summary>
+        /// 提取采样点，用于网格范围计算。
+        /// </summary>
+        private static Point3d[] GetSamplePoints(Extents3d box)
+        {
+            return new Point3d[]
+            {
+                new Point3d(box.MinPoint.X, box.MinPoint.Y, 0),
+                new Point3d(box.MaxPoint.X, box.MinPoint.Y, 0),
+                new Point3d(box.MinPoint.X, box.MaxPoint.Y, 0),
+                new Point3d(box.MaxPoint.X, box.MaxPoint.Y, 0),
+                new Point3d((box.MinPoint.X + box.MaxPoint.X) / 2, box.MinPoint.Y, 0),
+                new Point3d((box.MinPoint.X + box.MaxPoint.X) / 2, box.MaxPoint.Y, 0),
+                new Point3d(box.MinPoint.X, (box.MinPoint.Y + box.MaxPoint.Y) / 2, 0),
+                new Point3d(box.MaxPoint.X, (box.MinPoint.Y + box.MaxPoint.Y) / 2, 0)
+            };
+        }
+
+        /// <summary>
+        /// 根据种子信息计算方向向量。
+        /// </summary>
+        private static (Vector3d u, Vector3d v) CalculateDirectionVector(SeedData seed)
+        {
+            double cos = Math.Cos(seed.Rotation);
+            double sin = Math.Sin(seed.Rotation);
+            Vector3d u = new Vector3d(cos * seed.Width, sin * seed.Width, 0);
+            Vector3d v = new Vector3d(-sin * seed.Height, cos * seed.Height, 0);
+            return (u, v);
+        }
+
+        /// <summary>
+        /// 计算网格行列范围。
+        /// </summary>
+        private static (int minCol, int maxCol, int minRow, int maxRow) CalculateGridRange(SeedData seed, Extents3d box)
+        {
+            Point3d[] samplePoints = GetSamplePoints(box);
+            var (u, v) = CalculateDirectionVector(seed);
+            double det = seed.Width * seed.Height;
+
+            int minCol = int.MaxValue, maxCol = int.MinValue;
+            int minRow = int.MaxValue, maxRow = int.MinValue;
+
+            foreach (Point3d pt in samplePoints)
+            {
+                double offsetX = pt.X - seed.Center.X;
+                double offsetY = pt.Y - seed.Center.Y;
+                double a = (offsetX * v.Y - offsetY * v.X) / det;
+                double b = (offsetY * u.X - offsetX * u.Y) / det;
+                int col = (int)Math.Floor(a);
+                int row = (int)Math.Floor(b);
+                if (col < minCol) minCol = col;
+                if (col > maxCol) maxCol = col;
+                if (row < minRow) minRow = row;
+                if (row > maxRow) maxRow = row;
+            }
+
+            return (minCol - 1, maxCol + 1, minRow - 1, maxRow + 1);
+        }
+
+        // ================== 原有方法保持不变 ==================
+
+        /// <summary>
+        /// 种子数据提取
+        /// </summary>
+        /// <param name="seedResult"></param>
+        /// <returns></returns>
         public static SeedData ExtractSeedData(PromptEntityResult seedResult)
         {
             if (seedResult == null) return null;
@@ -169,6 +208,11 @@ namespace BIMSeedFiller
             }
         }
 
+        /// <summary>
+        /// 边界数据提取
+        /// </summary>
+        /// <param name="boundaryResult"></param>
+        /// <returns></returns>
         private static BoundaryData ExtractBoundaryData(PromptEntityResult boundaryResult)
         {
             if (boundaryResult == null) return null;
@@ -189,6 +233,10 @@ namespace BIMSeedFiller
             }
         }
 
+        /// <summary>
+        /// 创建图层
+        /// </summary>
+        /// <returns></returns>
         private static bool CreateLayer()
         {
             Database db = HostApplicationServices.WorkingDatabase;
@@ -212,28 +260,22 @@ namespace BIMSeedFiller
             }
         }
 
+        /// <summary>
+        /// 创建矩形多段线
+        /// </summary>
+        /// <param name="pointCenter"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        /// <param name="rotation"></param>
+        /// <param name="db"></param>
+        /// <param name="tr"></param>
+        /// <returns></returns>
         private static Polyline CreateRectangle(Point3d pointCenter, double width, double height, double rotation, Database db, Transaction tr)
         {
-            Polyline rect = new Polyline(4);
-
-            double halfW = width / 2.0;
-            double halfH = height / 2.0;
-            double cos = Math.Cos(rotation);
-            double sin = Math.Sin(rotation);
-            Point2d[] localOffsets =
-            {
-                new Point2d(-halfW, -halfH),
-                new Point2d( halfW, -halfH),
-                new Point2d( halfW,  halfH),
-                new Point2d(-halfW,  halfH)
-            };
-
-            for (int i = 0; i < localOffsets.Length; i++)
-            {
-                double worldX = pointCenter.X + (localOffsets[i].X * cos - localOffsets[i].Y * sin);
-                double worldY = pointCenter.Y + (localOffsets[i].X * sin + localOffsets[i].Y * cos);
-                rect.AddVertexAt(i, new Point2d(worldX, worldY), 0, 0, 0);
-            }
+            List<Point2d> corners = GetTileCorners(pointCenter, width, height, rotation);
+            Polyline rect = new Polyline(corners.Count);
+            for (int i = 0; i < corners.Count; i++)
+                rect.AddVertexAt(i, corners[i], 0, 0, 0);
             rect.Closed = true;
             rect.Layer = "填充种子后";
 
@@ -269,6 +311,12 @@ namespace BIMSeedFiller
             return true;
         }
 
+        /// <summary>
+        /// 判断矩形是否完全在边界内
+        /// </summary>
+        /// <param name="rect"></param>
+        /// <param name="boundaryGeom"></param>
+        /// <returns></returns>
         private static bool IsFullyInside(Polyline rect, Polyline boundaryGeom)
         {
             for (int i = 0; i < 4; i++)
@@ -291,6 +339,12 @@ namespace BIMSeedFiller
             return true;
         }
 
+        /// <summary>
+        /// 判断点是否在多段线内
+        /// </summary>
+        /// <param name="point"></param>
+        /// <param name="boundaryGeom"></param>
+        /// <returns></returns>
         private static bool IsPointInsidePolyline(Point3d point, Polyline boundaryGeom)
         {
             if (!boundaryGeom.Closed) return false;
@@ -354,6 +408,12 @@ namespace BIMSeedFiller
             return inside;
         }
 
+        /// <summary>
+        /// 设置图层顺序，使得边界在上，填充种子在下
+        /// </summary>
+        /// <param name="topLayerName"></param>
+        /// <param name="bottomLayerName"></param>
+        /// <param name="boundaryId"></param>
         private static void SetLayerOrder(string topLayerName, string bottomLayerName, ObjectId boundaryId)
         {
             Database db = HostApplicationServices.WorkingDatabase;
@@ -394,6 +454,14 @@ namespace BIMSeedFiller
             }
         }
 
+        /// <summary>
+        /// 计算矩形与边界的交集，返回一个或多个多段线
+        /// </summary>
+        /// <param name="tileRect"></param>
+        /// <param name="boundary"></param>
+        /// <param name="tr"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
         private static List<Polyline> ComputeIntersection(Polyline tileRect, Polyline boundary,
             Transaction tr, Database db)
         {
@@ -435,6 +503,11 @@ namespace BIMSeedFiller
             return new List<Polyline> { CreateCleanPolyline(sortedPoints, tr, db) };
         }
 
+        /// <summary>
+        /// 计算凸包，返回按顺时针排序的点列表
+        /// </summary>
+        /// <param name="points"></param>
+        /// <returns></returns>
         private static List<Point3d> ComputeConvexHull(List<Point3d> points)
         {
             var sorted = points.OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
@@ -464,11 +537,25 @@ namespace BIMSeedFiller
             return hull;
         }
 
+        /// <summary>
+        /// 计算向量叉积，用于判断点的相对位置
+        /// </summary>
+        /// <param name="o"></param>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <returns></returns>
         private static double Cross(Point3d o, Point3d a, Point3d b)
         {
             return (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
         }
 
+        /// <summary>
+        /// 创建一个干净的多段线，确保顶点按顺时针顺序排列，并添加到数据库中
+        /// </summary>
+        /// <param name="points"></param>
+        /// <param name="tr"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
         private static Polyline CreateCleanPolyline(List<Point3d> points, Transaction tr, Database db)
         {
             if (points.Count < 3) return null;
@@ -486,6 +573,11 @@ namespace BIMSeedFiller
             return pline;
         }
 
+        /// <summary>
+        /// 增加唯一的点到列表中，避免重复点
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="pt"></param>
         private static void AddUniquePoint(List<Point3d> list, Point3d pt)
         {
             foreach (Point3d existing in list)
@@ -495,8 +587,14 @@ namespace BIMSeedFiller
             list.Add(pt);
         }
 
-        // ==================== 预览功能（纯数学实现，不创建 AutoCAD 实体） ====================
+        // ==================== 预览功能 ====================
 
+        /// <summary>
+        /// 预览种子填充结果，返回多边形顶点列表
+        /// </summary>
+        /// <param name="seedResult"></param>
+        /// <param name="boundaryResult"></param>
+        /// <returns></returns>
         public static List<List<Point2d>> Preview(PromptEntityResult seedResult, PromptEntityResult boundaryResult)
         {
             if (seedResult.Status != PromptStatus.OK || boundaryResult.Status != PromptStatus.OK)
@@ -510,41 +608,7 @@ namespace BIMSeedFiller
             if (boundaryPoints.Count < 3) return new List<List<Point2d>>();
 
             Extents3d box = boundary.BoundingBox;
-            Point3d[] samplePoints = new Point3d[]
-            {
-                new Point3d(box.MinPoint.X, box.MinPoint.Y, 0),
-                new Point3d(box.MaxPoint.X, box.MinPoint.Y, 0),
-                new Point3d(box.MinPoint.X, box.MaxPoint.Y, 0),
-                new Point3d(box.MaxPoint.X, box.MaxPoint.Y, 0),
-                new Point3d((box.MinPoint.X + box.MaxPoint.X) / 2, box.MinPoint.Y, 0),
-                new Point3d((box.MinPoint.X + box.MaxPoint.X) / 2, box.MaxPoint.Y, 0),
-                new Point3d(box.MinPoint.X, (box.MinPoint.Y + box.MaxPoint.Y) / 2, 0),
-                new Point3d(box.MaxPoint.X, (box.MinPoint.Y + box.MaxPoint.Y) / 2, 0)
-            };
-
-            double cos = Math.Cos(seed.Rotation);
-            double sin = Math.Sin(seed.Rotation);
-            Vector3d u = new Vector3d(cos * seed.Width, sin * seed.Width, 0);
-            Vector3d v = new Vector3d(-sin * seed.Height, cos * seed.Height, 0);
-            double det = seed.Width * seed.Height;
-
-            int minCol = int.MaxValue, maxCol = int.MinValue;
-            int minRow = int.MaxValue, maxRow = int.MinValue;
-
-            foreach (Point3d pt in samplePoints)
-            {
-                double offsetX = pt.X - seed.Center.X;
-                double offsetY = pt.Y - seed.Center.Y;
-                double a = (offsetX * v.Y - offsetY * v.X) / det;
-                double b = (offsetY * u.X - offsetX * u.Y) / det;
-                int col = (int)Math.Floor(a);
-                int row = (int)Math.Floor(b);
-                if (col < minCol) minCol = col;
-                if (col > maxCol) maxCol = col;
-                if (row < minRow) minRow = row;
-                if (row > maxRow) maxRow = row;
-            }
-            minCol--; minRow--; maxCol++; maxRow++;
+            var (minCol, maxCol, minRow, maxRow) = CalculateGridRange(seed, box);
 
             List<List<Point2d>> allPolygons = new List<List<Point2d>>();
 
@@ -552,7 +616,7 @@ namespace BIMSeedFiller
             {
                 for (int j = minRow; j <= maxRow; j++)
                 {
-                    Point3d tileCenter = seed.Center + i * u + j * v;
+                    Point3d tileCenter = seed.Center + i * CalculateDirectionVector(seed).u + j * CalculateDirectionVector(seed).v;
                     List<Point2d> tileCorners = GetTileCorners(tileCenter, seed.Width, seed.Height, seed.Rotation);
 
                     if (IsPolygonCompletelyOutside(tileCorners, boundaryPoints))
@@ -574,6 +638,14 @@ namespace BIMSeedFiller
             return allPolygons;
         }
 
+        /// <summary>
+        /// 预览使用的顶点计算（与 CreateRectangle 共享）
+        /// </summary>
+        /// <param name="center"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        /// <param name="rotation"></param>
+        /// <returns></returns>
         private static List<Point2d> GetTileCorners(Point3d center, double width, double height, double rotation)
         {
             double halfW = width / 2.0;
@@ -599,6 +671,11 @@ namespace BIMSeedFiller
             return world;
         }
 
+        /// <summary>
+        /// 获取边界多段线的顶点列表，处理了 bulge 情况
+        /// </summary>
+        /// <param name="boundaryId"></param>
+        /// <returns></returns>
         private static List<Point2d> GetBoundaryPoints(ObjectId boundaryId)
         {
             List<Point2d> points = new List<Point2d>();
@@ -646,6 +723,12 @@ namespace BIMSeedFiller
             return points;
         }
 
+        /// <summary>
+        /// 判断多边形是否完全在边界外部
+        /// </summary>
+        /// <param name="poly"></param>
+        /// <param name="boundary"></param>
+        /// <returns></returns>
         private static bool IsPolygonCompletelyOutside(List<Point2d> poly, List<Point2d> boundary)
         {
             double minX = poly.Min(p => p.X), maxX = poly.Max(p => p.X);
@@ -669,6 +752,12 @@ namespace BIMSeedFiller
             return !IsPointInPolygon(poly[0], boundary);
         }
 
+        /// <summary>
+        /// 判断多边形是否完全在边界内部
+        /// </summary>
+        /// <param name="poly"></param>
+        /// <param name="boundary"></param>
+        /// <returns></returns>
         private static bool IsPolygonFullyInside(List<Point2d> poly, List<Point2d> boundary)
         {
             foreach (var p in poly)
@@ -687,6 +776,12 @@ namespace BIMSeedFiller
             return true;
         }
 
+        /// <summary>
+        /// 判断点是否在多边形内，使用射线法
+        /// </summary>
+        /// <param name="point"></param>
+        /// <param name="polygon"></param>
+        /// <returns></returns>
         private static bool IsPointInPolygon(Point2d point, List<Point2d> polygon)
         {
             bool inside = false;
@@ -700,6 +795,14 @@ namespace BIMSeedFiller
             return inside;
         }
 
+        /// <summary>
+        /// 线段相交判断，使用叉积法
+        /// </summary>
+        /// <param name="p1"></param>
+        /// <param name="p2"></param>
+        /// <param name="q1"></param>
+        /// <param name="q2"></param>
+        /// <returns></returns>
         private static bool LineSegmentsIntersect(Point2d p1, Point2d p2, Point2d q1, Point2d q2)
         {
             double Cross(Point2d a, Point2d b, Point2d c) => (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
@@ -710,6 +813,12 @@ namespace BIMSeedFiller
             return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
         }
 
+        /// <summary>
+        /// 计算预览时的裁剪多边形，返回裁剪后的顶点列表
+        /// </summary>
+        /// <param name="tileCorners"></param>
+        /// <param name="boundary"></param>
+        /// <returns></returns>
         private static List<Point2d> ComputePreviewClippedPolygon(List<Point2d> tileCorners, List<Point2d> boundary)
         {
             List<Point2d> internalPoints = new List<Point2d>();
@@ -750,6 +859,14 @@ namespace BIMSeedFiller
             return ComputeConvexHull2D(internalPoints);
         }
 
+        /// <summary>
+        /// 计算两条线段的交点，返回交点坐标，如果不相交则返回 NaN
+        /// </summary>
+        /// <param name="p1"></param>
+        /// <param name="p2"></param>
+        /// <param name="p3"></param>
+        /// <param name="p4"></param>
+        /// <returns></returns>
         private static Point2d ComputeLineIntersection(Point2d p1, Point2d p2, Point2d p3, Point2d p4)
         {
             double x1 = p1.X, y1 = p1.Y, x2 = p2.X, y2 = p2.Y;
@@ -760,6 +877,11 @@ namespace BIMSeedFiller
             return new Point2d(x1 + t * (x2 - x1), y1 + t * (y2 - y1));
         }
 
+        /// <summary>
+        /// 怎加唯一的二维点到列表中，避免重复点
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="pt"></param>
         private static void AddUniquePoint2D(List<Point2d> list, Point2d pt)
         {
             foreach (var p in list)
@@ -767,6 +889,11 @@ namespace BIMSeedFiller
             list.Add(pt);
         }
 
+        /// <summary>
+        /// 计算二维凸包，返回按顺时针排序的点列表
+        /// </summary>
+        /// <param name="points"></param>
+        /// <returns></returns>
         private static List<Point2d> ComputeConvexHull2D(List<Point2d> points)
         {
             var sorted = points.OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
