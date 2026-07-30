@@ -33,6 +33,7 @@ namespace BIMSeedFiller.Wpf.ViewModels
         public ICommand getBoundaryCommand { get; }
         public ICommand FillCommand { get; }
         public ICommand PreviewCommand { get; }
+        public ICommand ClearCommand { get; }
 
         public MainViewModel()
         {
@@ -43,6 +44,7 @@ namespace BIMSeedFiller.Wpf.ViewModels
             getBoundaryCommand = new RelayCommand(ExecuteGetBoundary);
             FillCommand = new RelayCommand(ExecuteFillCommand);
             PreviewCommand = new RelayCommand(ExecutePreview);
+            ClearCommand = new RelayCommand(Clear);
         }
 
         public SeedData SeedData
@@ -96,6 +98,7 @@ namespace BIMSeedFiller.Wpf.ViewModels
             }
         }
 
+        // 选择种子：使用命令行提示，避免WPF崩溃
         private void ExecuteGetSeed()
         {
             ActivateAutoCADWindow();
@@ -103,18 +106,24 @@ namespace BIMSeedFiller.Wpf.ViewModels
             Editor ed = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument.Editor;
             seedResult = InputCollector.GetSeed(ed);
 
-            // 明确不更新WPF状态，防止崩溃
             if (seedResult.Status != PromptStatus.OK)
+            {
+                ed.WriteMessage("\n种子选择失败。");
                 return;
+            }
 
             SeedData seedData = TileFiller.ExtractSeedData(seedResult);
             if (seedData == null || seedData.Geometry == null)
+            {
+                ed.WriteMessage("\n种子数据无效。");
                 return;
+            }
 
             SeedData = seedData;
+            ed.WriteMessage("\n种子已选择。");
         }
 
-
+        // 选择边界：使用命令行提示，避免WPF崩溃
         private void ExecuteGetBoundary()
         {
             ActivateAutoCADWindow();
@@ -124,42 +133,64 @@ namespace BIMSeedFiller.Wpf.ViewModels
 
             if (boundaryResult.Status != PromptStatus.OK)
             {
-                System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    Status = "边界选择失败，请重试。";
-                }));
+                ed.WriteMessage("\n边界选择失败。");
                 return;
             }
 
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            ed.WriteMessage("\n边界已选择。");
+        }
+
+        /// <summary>
+        /// 检查种子和边界是否都已选择
+        /// </summary>
+        private bool CheckSelectionsAndPrompt(out string message)
+        {
+            if (seedResult.Status == PromptStatus.OK && boundaryResult.Status == PromptStatus.OK)
             {
-                if (seedResult.Status == PromptStatus.OK)
-                    Status = "种子和边界已选择，可以进行填充或预览。";
-                else
-                    Status = "边界已选择，请选择种子...";
-            }));
+                message = null;
+                return true;
+            }
+
+            if (seedResult.Status != PromptStatus.OK && boundaryResult.Status != PromptStatus.OK)
+                message = "请先选择种子和边界。";
+            else if (seedResult.Status != PromptStatus.OK)
+                message = "请先选择种子。";
+            else
+                message = "请先选择边界。";
+
+            return false;
         }
 
         private void ExecuteFillCommand()
         {
             try
             {
-                if (seedResult.Status != PromptStatus.OK || boundaryResult.Status != PromptStatus.OK)
+                if (!CheckSelectionsAndPrompt(out string msg))
                 {
-                    MessageBox.Show("请先选择种子和边界。");
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        Status = msg;
+                    }));
+                    MessageBox.Show(msg);
                     return;
                 }
 
-                // 验证 ObjectId 有效性（对象是否已被删除）
                 if (seedResult.ObjectId.IsNull || seedResult.ObjectId.IsErased ||
                     boundaryResult.ObjectId.IsNull || boundaryResult.ObjectId.IsErased)
                 {
-                    MessageBox.Show("种子或边界图形已失效，请重新选择。");
-                    Status = "图形已失效，请重新选择。";
+                    string err = "种子或边界图形已失效，请重新选择。";
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        Status = err;
+                    }));
+                    MessageBox.Show(err);
                     return;
                 }
 
-                Status = "正在填充...";
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Status = "正在填充...";
+                }));
 
                 var doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
                 using (doc.LockDocument())
@@ -169,19 +200,29 @@ namespace BIMSeedFiller.Wpf.ViewModels
                     {
                         doc.Editor.WriteMessage("\n填充完成！");
                         doc.Editor.Regen();
-                        Status = "填充完成！";
+                        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            Status = "填充完成！";
+                        }));
                     }
                     else
                     {
                         doc.Editor.WriteMessage("\n填充失败，请检查种子和边界是否正确选择。");
-                        Status = "填充失败。";
+                        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            Status = "填充失败。";
+                        }));
                     }
                 }
             }
             catch (Exception ex)
             {
-                Status = $"填充出错：{ex.Message}";
-                MessageBox.Show($"填充出错：{ex.Message}", "错误");
+                string err = $"填充出错：{ex.Message}";
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Status = err;
+                }));
+                MessageBox.Show(err, "错误");
             }
         }
 
@@ -189,21 +230,32 @@ namespace BIMSeedFiller.Wpf.ViewModels
         {
             try
             {
-                if (seedResult.Status != PromptStatus.OK || boundaryResult.Status != PromptStatus.OK)
+                if (!CheckSelectionsAndPrompt(out string msg))
                 {
-                    MessageBox.Show("请先选择种子和边界。");
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        Status = msg;
+                    }));
+                    MessageBox.Show(msg);
                     return;
                 }
 
                 if (seedResult.ObjectId.IsNull || seedResult.ObjectId.IsErased ||
                     boundaryResult.ObjectId.IsNull || boundaryResult.ObjectId.IsErased)
                 {
-                    MessageBox.Show("种子或边界图形已失效，请重新选择。");
-                    Status = "图形已失效，请重新选择。";
+                    string err = "种子或边界图形已失效，请重新选择。";
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        Status = err;
+                    }));
+                    MessageBox.Show(err);
                     return;
                 }
 
-                Status = "正在生成预览...";
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Status = "正在生成预览...";
+                }));
 
                 var doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
                 using (doc.LockDocument())
@@ -213,19 +265,51 @@ namespace BIMSeedFiller.Wpf.ViewModels
 
                 if (PreviewPolygons == null || PreviewPolygons.Count == 0)
                 {
-                    Status = "预览结果为空，请检查种子和边界。";
-                    MessageBox.Show("预览结果为空，请检查种子和边界是否有效。");
+                    string err = "预览结果为空，请检查种子和边界。";
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        Status = err;
+                    }));
+                    MessageBox.Show(err);
                 }
                 else
                 {
-                    Status = $"预览完成，共 {PreviewPolygons.Count} 个瓦片。";
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        Status = $"预览完成，共 {PreviewPolygons.Count} 个瓦片。";
+                    }));
                 }
             }
             catch (Exception ex)
             {
-                Status = $"预览出错：{ex.Message}";
-                MessageBox.Show($"预览出错：{ex.Message}");
+                string err = $"预览出错：{ex.Message}";
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Status = err;
+                }));
+                MessageBox.Show(err);
             }
+        }
+
+        /// <summary>
+        /// 重置所有状态：清空选择、清空预览、重置界面
+        /// </summary>
+        public void Clear()
+        {
+            // 清空选择
+            seedResult = default(PromptEntityResult);
+            boundaryResult = default(PromptEntityResult);
+            SeedData = new SeedData();
+            BoundaryData = new BoundaryData();
+
+            // 清空预览
+            PreviewPolygons = null;
+
+            // 更新状态栏
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Status = "请选择种子和边界...";
+            }));
         }
     }
 

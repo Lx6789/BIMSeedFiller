@@ -31,7 +31,19 @@ namespace BIMSeedFiller.Wpf
             {
                 _mainWindow = new MainWindow();
                 _mainWindow.DataContext = new MainViewModel();
-                _mainWindow.Closing += (s, e) => { e.Cancel = true; _mainWindow.Hide(); };
+
+                // 关闭窗口时：隐藏窗口 + 重置所有选择状态和预览
+                _mainWindow.Closing += (s, e) =>
+                {
+                    e.Cancel = true;      // 阻止真正关闭，只是隐藏窗口
+                    _mainWindow.Hide();
+
+                    // 调用 ViewModel 的 Clear 方法清空选择、预览和状态栏
+                    if (_mainWindow.DataContext is MainViewModel vm)
+                    {
+                        vm.Clear();
+                    }
+                };
             }
 
             // 设置窗口归属，让它随AutoCAD置顶
